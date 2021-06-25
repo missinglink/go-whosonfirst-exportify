@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
-	"github.com/sfomuseum/go-flags/multi"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"github.com/whosonfirst/go-reader"
@@ -14,6 +14,7 @@ import (
 	"github.com/whosonfirst/go-writer"
 	"log"
 	"os"
+	"strconv"
 )
 
 func main() {
@@ -24,23 +25,56 @@ func main() {
 
 	exporter_uri := flag.String("exporter-uri", "whosonfirst://", "A valid whosonfirst/go-whosonfirst-export URI.")
 
-	var ids multi.MultiInt64
-	flag.Var(&ids, "id", "One or more valid Who's On First ID.")
-
 	parent_id := flag.Int64("parent-id", 0, "A valid Who's On First ID.")
 
+	from_stdin := flag.Bool("stdin", false, "Read target IDs from STDIN")
+	
 	flag.Usage = func() {
 
 		fmt.Fprintf(os.Stderr, "Assign the parent ID and its hierarchy to one or more WOF records\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n\t %s [options] wof-id-(N) wof-id-(N)\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage:\n\t %s [options] target-id-(N) target-id-(N)\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "For example:\n")
-		// fmt.Fprintf(os.Stderr, "\t%s -reader-uri fs:///usr/local/data/sfomuseum-data-architecture/data -parent-id 1477855937 -id 1477855955\n", os.Args[0])
+		// fmt.Fprintf(os.Stderr, "\t%s -reader-uri fs:///usr/local/data/sfomuseum-data-architecture/data -parent-id 1477855937 1477855955\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Valid options are:\n")
 		flag.PrintDefaults()
 	}
 
 	flag.Parse()
 
+	// START OF put me in a function...
+
+	str_ids := flag.Args()
+
+	if *from_stdin {
+
+		scanner := bufio.NewScanner(os.Stdin)
+
+		for scanner.Scan() {
+			str_ids = append(str_ids, scanner.Text())
+		}
+
+		err := scanner.Err()
+
+		if err != nil {
+			log.Fatalf("Failed to read input from STDIN, %v", err)
+		}
+	}
+
+	target_ids := make([]int64, len(str_ids))
+
+	for idx, this_id := range str_ids {
+
+		id, err := strconv.ParseInt(this_id, 10, 64)
+
+		if err != nil {
+			log.Fatalf("Failed to parse '%s', %v", this_id, err)
+		}
+
+		target_ids[idx] = id
+	}
+
+	// END OF put me in a function
+	
 	if *parent_reader_uri == "" {
 		*parent_reader_uri = *reader_uri
 	}
@@ -98,7 +132,7 @@ func main() {
 
 	// Okay, go
 
-	for _, id := range ids {
+	for _, id := range target_ids {
 
 		f, err := wof_reader.LoadBytesFromID(ctx, r, id)
 
